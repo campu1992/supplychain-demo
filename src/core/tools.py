@@ -63,6 +63,7 @@ def get_pandas_agent_tool(config: Box, llm: ChatGoogleGenerativeAI):
         df,
         agent_type="zero-shot-react-description",
         verbose=True,
+        allow_dangerous_code=True
     )
 
     class PandasAgentTool(BaseTool):

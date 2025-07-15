@@ -4,13 +4,14 @@ data:
   logs_path: "data/tokenized_access_logs.csv"
   summaries_path: "data/user_summaries.json"
 
+# Configuration for the vector database
 database:
-  host: "localhost"
+  host: "localhost" # Connect to the ChromaDB server running inside the same container
   port: 8000
-  collection_name: "supply_chain_rag"
+  collection_name: "supply_chain_collection"
 
 llm:
-  api_key: ""
+  api_key: "API-KEY-GEMINI"
   model_name: "gemini-1.5-flash"
   embedding_model: "BAAI/bge-large-en-v1.5"
   reranker_model: "cross-encoder/ms-marco-MiniLM-L-6-v2"

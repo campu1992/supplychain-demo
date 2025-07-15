@@ -1,26 +1,27 @@
 import os
 import logging
 from langchain_google_genai import ChatGoogleGenerativeAI
+from box import Box
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 class Gemini:
     """A wrapper class for the Google Gemini model."""
-    def __init__(self, model_name: str, temperature: float = 0.1):
+    def __init__(self, config: Box):
         """
         Initializes the Gemini model.
 
         Args:
-            model_name (str): The specific Gemini model to use.
-            temperature (float): The temperature for the model's output.
+            config (Box): The application configuration object containing model details.
         """
-        self.model_name = model_name
-        self.temperature = temperature
+        self.model_name = config.llm.model_name
+        self.temperature = config.llm.temperature
         
         try:
-            self.api_key = os.getenv("GEMINI_API_KEY")
+            # Prioritize env var, but fall back to config file
+            self.api_key = os.getenv("GEMINI_API_KEY", config.llm.api_key)
             if not self.api_key:
-                logging.warning("GEMINI_API_KEY environment variable not found. Check your configuration.")
+                logging.warning("GEMINI_API_KEY not found in environment or config file. Check your configuration.")
             
             self.llm = ChatGoogleGenerativeAI(
                 model=self.model_name,

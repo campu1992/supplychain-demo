@@ -23,10 +23,7 @@ class QAPipeline:
             port=config.database.port,
             collection_name=config.database.collection_name
         )
-        self.llm = Gemini(
-            model_name=config.llm.model_name,
-            temperature=config.llm.temperature
-        )
+        self.llm = Gemini(config)
         self.reranker = Reranker(
             model_name=config.llm.reranker_model,
             device=config.llm.device
