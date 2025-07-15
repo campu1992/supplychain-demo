@@ -1,0 +1,22 @@
+# Configuration for the RAG system
+data:
+  path: "data/DataCoSupplyChainDataset.csv"
+  logs_path: "data/tokenized_access_logs.csv"
+  summaries_path: "data/user_summaries.json"
+
+database:
+  host: "localhost"
+  port: 8000
+  collection_name: "supply_chain_rag"
+
+llm:
+  api_key: ""
+  model_name: "gemini-1.5-flash"
+  embedding_model: "BAAI/bge-large-en-v1.5"
+  reranker_model: "cross-encoder/ms-marco-MiniLM-L-6-v2"
+  temperature: 0.1
+  device: "cpu" # "cuda" if you have a compatible GPU
+
+retrieval:
+  k_retrieved_docs: 10
+  k_reranked_docs: 3 

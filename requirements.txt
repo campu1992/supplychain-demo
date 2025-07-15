@@ -1,0 +1,20 @@
+# Core
+streamlit
+pandas
+numpy
+pyyaml
+python-box
+tqdm
+
+# IA & Embeddings
+sentence-transformers
+torch
+transformers
+chromadb-client
+
+# LangChain Agent
+langchain
+langchain-community
+langchain-experimental
+langchain-google-genai
+tabulate 
