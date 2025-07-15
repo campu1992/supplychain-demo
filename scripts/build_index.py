@@ -8,17 +8,16 @@ import numpy as np
 
 from src.core.embedding import EmbeddingModel
 from src.core.retrieval import ChromaRetriever
-from src.ingestion.summarizer import AdvancedSummarizer
+from scripts.local_summarizer import AdvancedSummarizer
 
-# Desactivar el paralelismo de tokenizers para evitar warnings y posibles deadlocks
+# Disable tokenizer parallelism to avoid warnings and potential deadlocks
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 def load_precomputed_data(directory="data/precomputed"):
     """
-    Carga los embeddings, documentos, metadatos e ids pre-calculados desde
-    archivos locales.
+    Loads pre-computed embeddings, documents, metadata, and ids from local files.
     """
-    print("Cargando artefactos pre-calculados de embeddings...")
+    print("Loading pre-computed embedding artifacts...")
     embeddings = np.load(os.path.join(directory, "embeddings.npy"))
     with open(os.path.join(directory, "documents.json"), 'r', encoding='utf-8') as f:
         documents = json.load(f)
@@ -26,145 +25,145 @@ def load_precomputed_data(directory="data/precomputed"):
         metadatas = json.load(f)
     with open(os.path.join(directory, "ids.json"), 'r', encoding='utf-8') as f:
         ids = json.load(f)
-    print("Artefactos cargados exitosamente.")
+    print("Artifacts loaded successfully.")
     return embeddings, documents, metadatas, ids
 
 def main():
     """
-    Función principal para ejecutar el pipeline de indexación.
+    Main function to run the indexing pipeline.
     """
-    # Cargar configuración desde una variable de entorno en lugar de un archivo
+    # Load configuration from an environment variable instead of a file
     config_yaml = os.getenv("RAG_CONFIG_YAML")
     if not config_yaml:
-        raise ValueError("La configuración no se encontró en la variable de entorno RAG_CONFIG_YAML.")
+        raise ValueError("Configuration not found in RAG_CONFIG_YAML environment variable.")
     
     config = Box(yaml.safe_load(config_yaml))
 
-    # Inicializar el Retriever de ChromaDB
+    # Initialize ChromaDB Retriever
     retriever = ChromaRetriever(
         host=config.database.host,
         port=config.database.port,
         collection_name=config.database.collection_name
     )
 
-    # Limpiar la colección existente para un inicio limpio
-    print("Limpiando la colección existente en ChromaDB...")
+    # Clean up existing collection for a fresh start
+    print("Clearing the existing collection in ChromaDB...")
     retriever.clear_collection()
 
     precomputed_dir = "data/precomputed"
-    os.makedirs("data", exist_ok=True) # Asegurarse de que el directorio 'data' exista
+    os.makedirs("data", exist_ok=True) # Ensure the 'data' directory exists
 
-    # --- Lógica Inteligente de Indexación ---
+    # --- Smart Indexing Logic ---
     if os.path.exists(os.path.join(precomputed_dir, "embeddings.npy")):
-        print("Se encontraron embeddings pre-calculados. Cargando desde el disco...")
+        print("Found pre-computed embeddings. Loading from disk...")
         embeddings, documents, metadatas, ids = load_precomputed_data(precomputed_dir)
 
-        print(f"Añadiendo {len(documents)} documentos a ChromaDB en lotes...")
-        # Añadir los datos a ChromaDB en lotes para manejar grandes volúmenes
-        batch_size = 1000  # Ajusta este tamaño según la memoria de tu sistema
-        for i in tqdm(range(0, len(documents), batch_size), desc="Indexando en ChromaDB"):
+        print(f"Adding {len(documents)} documents to ChromaDB in batches...")
+        # Add data to ChromaDB in batches to handle large volumes
+        batch_size = 1000  # Adjust this size based on your system's memory
+        for i in tqdm(range(0, len(documents), batch_size), desc="Indexing to ChromaDB"):
             i_end = min(i + batch_size, len(documents))
             
-            # Asegurarse de que el lote de embeddings es una lista de listas
+            # Ensure the batch of embeddings is a list of lists
             batch_embeddings = embeddings[i:i_end]
             if isinstance(batch_embeddings, np.ndarray):
                 batch_embeddings = batch_embeddings.tolist()
 
-            # --- INICIO DE LA SOLUCIÓN ---
-            # Limpieza de metadatos para el lote actual, justo antes de la inserción.
-            # Esto soluciona el error de valores 'NoneType' al cargar desde pre-calculados.
+            # --- START OF THE SOLUTION ---
+            # Clean metadata for the current batch, right before insertion.
+            # This fixes the 'NoneType' error when loading from pre-computed files.
             current_metadatas = metadatas[i:i_end]
             for meta in current_metadatas:
                 for key, value in meta.items():
-                    # Forzar la conversión de cualquier tipo no válido (como None) a string.
+                    # Force conversion of any invalid type (like None) to a string.
                     if not isinstance(value, (str, int, float, bool)):
                         meta[key] = str(value)
-            # --- FIN DE LA SOLUCIÓN ---
+            # --- END OF THE SOLUTION ---
 
             try:
                 retriever.add_documents(
                     embeddings=batch_embeddings,
                     documents=documents[i:i_end],
-                    metadatas=current_metadatas, # Usar los metadatos ya limpios
+                    metadatas=current_metadatas, # Use the cleaned metadata
                     ids=ids[i:i_end]
                 )
             except ValueError as e:
-                print(f"Error procesando el lote {i}-{i_end}. Error: {e}")
-                # Opcional: inspeccionar el lote problemático
+                print(f"Error processing batch {i}-{i_end}. Error: {e}")
+                # Optional: inspect the problematic batch
                 for j in range(i, i_end):
                     problem_meta = metadatas[j]
                     for k, v in problem_meta.items():
                         if not isinstance(v, (str, int, float, bool)):
-                            print(f"  -> Documento problemático ID {ids[j]}, Clave '{k}', Tipo {type(v)}")
-                raise # Volver a lanzar la excepción para detener la ejecución
+                            print(f"  -> Problematic document ID {ids[j]}, Key '{k}', Type {type(v)}")
+                raise # Re-raise the exception to stop execution
 
 
     else:
-        # --- Ejecución Local (Fallback si no hay pre-cálculos) ---
-        print("No se encontraron embeddings pre-calculados. Ejecutando el pipeline localmente...")
-        print("Este proceso puede ser muy largo. Se recomienda usar los scripts de Colab.")
+        # --- Local Execution (Fallback if no pre-calculations) ---
+        print("No pre-computed embeddings found. Running the pipeline locally...")
+        print("This process can be very long. It's recommended to use the Colab scripts.")
 
-        # Inicializar modelo de embedding
+        # Initialize embedding model
         embedding_model = EmbeddingModel(
             model_name=config.llm.embedding_model
         )
         
-        # Cargar datos de órdenes
-        print("Cargando y limpiando el dataset principal...")
+        # Load order data
+        print("Loading and cleaning the main dataset...")
         df = pd.read_csv(config.data.path, encoding='latin1')
         df = df.drop_duplicates(subset='Order Id')
         df = df.dropna(subset=['Order Id'])
         df['order_document'] = df.apply(
-            lambda row: f"Order ID {row['Order Id']}: Producto '{row['Product Name']}' para el cliente {row['Customer Id']} en {row['Order City']}, {row['Order Country']}. Estado: {row['Order Status']}. Categoría: {row['Category Name']}.",
+            lambda row: f"Order ID {row['Order Id']}: Product '{row['Product Name']}' for customer {row['Customer Id']} in {row['Order City']}, {row['Order Country']}. Status: {row['Order Status']}. Category: {row['Category Name']}.",
             axis=1
         )
         
-        # --- Lógica de Resúmenes Mejorada ---
-        # Si no existen resúmenes pre-calculados, se generan localmente.
+        # --- Improved Summaries Logic ---
+        # If no pre-computed summaries exist, generate them locally.
         summaries_path = os.path.join(precomputed_dir, "user_summaries.json")
         if not os.path.exists(summaries_path):
-            print(f"No se encontró '{summaries_path}'. Generando resúmenes localmente...")
-            print("ADVERTENCIA: Este proceso puede ser muy lento sin GPU. Se recomienda usar Colab y colocar el resultado en 'data/precomputed/'.")
+            print(f"'{summaries_path}' not found. Generating summaries locally...")
+            print("WARNING: This process can be very slow without a GPU. It's recommended to use Colab and place the result in 'data/precomputed/'.")
             summarizer = AdvancedSummarizer()
-            # Asumimos que el path de los logs está en la config y es accesible
-            log_path = config.data.log_path  
+            # We assume the log path is in the config and is accessible
+            log_path = config.data.logs_path
             user_summaries = summarizer.generate_summaries(log_path)
             
-            # Guardar los resúmenes generados para futuras ejecuciones
+            # Save the generated summaries for future runs
             with open(summaries_path, 'w', encoding='utf-8') as f:
                 json.dump(user_summaries, f, indent=4, ensure_ascii=False)
-            print(f"Resúmenes guardados en '{summaries_path}'.")
+            print(f"Summaries saved to '{summaries_path}'.")
         else:
-            print(f"Cargando resúmenes de usuario desde '{summaries_path}'...")
+            print(f"Loading user summaries from '{summaries_path}'...")
             with open(summaries_path, 'r', encoding='utf-8') as f:
                 user_summaries = json.load(f)
 
-        # Preparar documentos para la base de datos vectorial
+        # Prepare documents for the vector database
         documents = []
         metadatas = []
         ids = []
 
-        # 1. Añadir documentos de órdenes
-        for _, row in tqdm(df.iterrows(), total=df.shape[0], desc="Preparando documentos de órdenes"):
+        # 1. Add order documents
+        for _, row in tqdm(df.iterrows(), total=df.shape[0], desc="Preparing order documents"):
             documents.append(row['order_document'])
-            # Limpiar metadatos: convertir todo a string y manejar nulos.
+            # Clean metadata: convert everything to string and handle nulls.
             meta = {str(k): (str(v) if pd.notna(v) else "") for k, v in row.to_dict().items() if k != 'order_document'}
             meta['document_type'] = 'order'
             metadatas.append(meta)
             ids.append(f"order_{row['Order Id']}")
 
-        # 2. Añadir documentos de resúmenes de usuario
-        for user_ip, summary in tqdm(user_summaries.items(), desc="Preparando resúmenes de usuario"):
+        # 2. Add user summary documents
+        for user_ip, summary in tqdm(user_summaries.items(), desc="Preparing user summaries"):
             documents.append(summary)
             metadatas.append({'document_type': 'user_summary', 'user_ip': user_ip})
             ids.append(f"summary_{user_ip}")
 
-        # Generar embeddings para todos los documentos
-        print(f"Generando embeddings para {len(documents)} documentos...")
+        # Generate embeddings for all documents
+        print(f"Generating embeddings for {len(documents)} documents...")
         embeddings = embedding_model.get_embeddings(documents)
 
-        # Guardar los artefactos generados para acelerar futuras ejecuciones
-        print(f"Guardando los artefactos generados en '{precomputed_dir}'...")
+        # Save the generated artifacts to speed up future runs
+        print(f"Saving generated artifacts to '{precomputed_dir}'...")
         os.makedirs(precomputed_dir, exist_ok=True)
         
         np.save(os.path.join(precomputed_dir, "embeddings.npy"), embeddings)
@@ -175,23 +174,23 @@ def main():
         with open(os.path.join(precomputed_dir, "ids.json"), 'w', encoding='utf-8') as f:
             json.dump(ids, f, ensure_ascii=False, indent=2)
         
-        print("Artefactos guardados exitosamente.")
+        print("Artifacts saved successfully.")
 
-        # Añadir a ChromaDB en lotes (igual que en la rama 'if')
-        print(f"Añadiendo {len(documents)} documentos a ChromaDB en lotes...")
+        # Add to ChromaDB in batches (same as in the 'if' branch)
+        print(f"Adding {len(documents)} documents to ChromaDB in batches...")
         batch_size = 1000
-        for i in tqdm(range(0, len(documents), batch_size), desc="Indexando en ChromaDB"):
+        for i in tqdm(range(0, len(documents), batch_size), desc="Indexing to ChromaDB"):
             i_end = min(i + batch_size, len(documents))
             
             batch_embeddings = embeddings[i:i_end]
             if isinstance(batch_embeddings, np.ndarray):
                 batch_embeddings = batch_embeddings.tolist()
 
-            # Limpieza final de metadatos justo antes de la inserción
+            # Final metadata cleanup just before insertion
             current_metadatas = metadatas[i:i_end]
             for meta in current_metadatas:
                 for key, value in meta.items():
-                    # Forzar la conversión a un tipo válido para ChromaDB
+                    # Force conversion to a type valid for ChromaDB
                     if not isinstance(value, (str, int, float, bool)):
                         meta[key] = str(value)
 
@@ -203,19 +202,19 @@ def main():
                     ids=ids[i:i_end]
                 )
             except ValueError as e:
-                print(f"Error procesando el lote {i}-{i_end}. Error: {e}")
-                # Opcional: inspeccionar el lote problemático
+                print(f"Error processing batch {i}-{i_end}. Error: {e}")
+                # Optional: inspect the problematic batch
                 for j in range(i, i_end):
                     problem_meta = metadatas[j]
                     for k, v in problem_meta.items():
                         if not isinstance(v, (str, int, float, bool)):
-                            print(f"  -> Documento problemático ID {ids[j]}, Clave '{k}', Tipo {type(v)}")
-                raise # Volver a lanzar la excepción para detener la ejecución
+                            print(f"  -> Problematic document ID {ids[j]}, Key '{k}', Type {type(v)}")
+                raise # Re-raise the exception to stop execution
 
 
-    print("\n--- Proceso de Indexación Finalizado ---")
-    print(f"Total de documentos en la colección '{config.database.collection_name}': {retriever.collection.count()}")
-    print("El sistema RAG está listo para recibir preguntas a través de 'app.py'.")
+    print("\n--- Indexing Process Finished ---")
+    print(f"Total documents in collection '{config.database.collection_name}': {retriever.collection.count()}")
+    print("The RAG system is ready to answer questions through 'app.py'.")
 
 if __name__ == "__main__":
     main() 
