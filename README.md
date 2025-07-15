@@ -123,10 +123,3 @@ Since the container runs in the background, use these commands to manage it:
     docker stop supply-chain-app
     ```
 
-## 5. Challenges and Solutions
-
-*   **Initial `ModuleNotFoundError`s:** Resolved by creating a comprehensive `requirements.txt` and using a Docker environment.
-*   **Semantic vs. Quantitative Questions:** The initial RAG-only approach failed on numerical questions. Evolved the architecture to a LangChain agent with distinct tools for semantic search and quantitative analysis.
-*   **ChromaDB `NoneType` Error:** Indexing failed due to null metadata. Added a data cleaning step before insertion into ChromaDB to convert `None` values into strings.
-*   **LangChain Agent Parsing Errors:** The agent failed because it expected English keywords (`Thought`, `Action`). Corrected the agent's master prompt to use the required English keywords.
-*   **Docker Service Management**: The application and database needed to run simultaneously. Created a `start.sh` script to launch the ChromaDB server in the background before starting the Streamlit app, all within a single container.
